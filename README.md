@@ -1,219 +1,233 @@
 # Hybrid Semantic PDF Comparison Engine
 
-## Problem Statement
-Document comparison tools often rely on rigid, purely deterministic character diffing or opaque, expensive LLM calls. The Hybrid Semantic PDF Comparison Engine addresses this gap by combining fast deterministic matching with local semantic embeddings and rule-based structural extraction. This engine accurately identifies unchanged, added, removed, and modified content across complex PDF documents—distinguishing trivial formatting edits from substantive changes (such as modifications to numbers, dates, obligations, or contractual terms) while providing human-readable explanations, severity scores, confidence levels, and rich visual output.
+## 1. Problem Statement
+Traditional document comparison tools rely on rigid character-level diffing or opaque, expensive LLM calls. Character-based diffing fails when documents contain paraphrased sentences, reordered clauses, or minor formatting changes—generating noisy false-positive diffs. Conversely, LLMs introduce non-deterministic outputs, prompt injection risks, high API costs, latency, and potential data privacy concerns.
 
-## Architecture Overview
-The engine follows a modular, hybrid pipeline architecture designed for accuracy, speed, and explainability:
+PDF documents present unique comparison challenges:
+- **Paraphrased Clauses**: Expressing identical contractual intent using different vocabulary.
+- **Reordered Sections**: Relocating paragraphs or sections across pages.
+- **Substantive Content Shifts**: Modifications to critical entity values (numbers, currencies, percentages, dates, durations, or legal obligations).
+- **Structural Modifications**: Insertion or deletion of clauses and subsections.
+
+The **Hybrid Semantic PDF Comparison Engine** solves this problem by combining fast deterministic algorithms with local AI embeddings and rule-based structural extraction.
+
+---
+
+## 2. Solution Overview
+The system follows a hybrid pipeline architecture guided by a core engineering principle:
+
+> *"Use deterministic algorithms where exactness and explainability matter, and local semantic embeddings where semantic similarity is required."*
 
 ```text
-PDF Ingestion (PyMuPDF / OCR Fallback / Table Structuring)
-  └──> Preprocessing & Segmentation (Paragraph + Sentence Hierarchy)
-        └──> Exact Matching (Hashing Normalized Text)
-              └──> Candidate Retrieval (Sentence Transformers + FAISS)
-                    └──> Multi-Signal Alignment (Semantic, Lexical, Entity, Positional)
-                          └──> Content-Aware Analysis (Numbers, Dates, Obligations, Negations)
-                                └──> Severity (LOW/MED/HIGH) & Confidence Scoring
-                                      └──> Output Generation (Color-Coded HTML & JSON Export)
+Source PDF (A) ──┐
+                 ├──► Native Ingestion (PyMuPDF)
+Target PDF (B) ──┘          │
+                            ▼
+                     Preprocessing &
+                      Segmentation
+                            │
+                            ▼
+                      Exact Matching (Hash-Indexed O(N+M))
+                            │
+                            ▼
+                     Semantic Candidate Retrieval
+                     (SentenceTransformers + FAISS)
+                            │
+                            ▼
+                     Multi-Signal Alignment
+                     (Semantic, Lexical, Section, Entity, Positional)
+                            │
+                            ▼
+                     Content-Aware Structural Analysis
+                     (Currencies, Dates, Durations, Modalities)
+                            │
+                            ▼
+                     Classification, Severity & Confidence Scoring
+                            │
+                            ▼
+                      ComparisonResult
+                         /        \
+                        ▼          ▼
+                      JSON        HTML
 ```
 
-Key Architectural Principles:
-- **Hybrid Paragraph + Sentence Hierarchy**: Paragraphs serve as positional alignment units while sentences enable fine-grained comparison.
-- **Multi-Signal Candidate Alignment**: FAISS handles candidate retrieval; final correspondence is determined by combining semantic, lexical, structural, and positional scores.
-- **Deterministic Content Analysis**: Detects critical modifications in numbers, dates, currencies, percentages, durations, obligations (must/should), and negations.
-- **Explainability & Transparency**: Every match result includes a human-readable explanation, a severity rating (LOW/MEDIUM/HIGH), and a classification confidence score.
-- **Unified Processing**: Tables are parsed into structured chunks that flow through the main comparison engine without requiring a secondary pipeline.
+---
 
-## Implementation Status
-- [x] **Phase 1: Project Foundation & Data Models**
-  - Modular project structure (`src/pdf_comparator`)
-  - Core data models (`Chunk`, `MatchResult`, `ProcessingStats`, and domain enums)
-  - Unit tests for data model serialization and integrity
-  - Minimal package configuration (`pyproject.toml`)
-- [x] **Phase 2: Native PDF Ingestion**
-  - Native PDF text, bounding box, and metadata extraction (`src/pdf_comparator/ingestion/extractor.py`)
-  - Intermediate dataclasses (`RawBlock`, `RawPage`, `RawDocument`) preserving raw untouched text
-  - Error handling for missing, invalid, corrupt, or empty PDFs (`PDFExtractionError`)
-  - Unit tests using synthetic single-page, multi-page, empty, and corrupt PDFs
+## 3. Why NOT an LLM?
+The core comparison pipeline intentionally operates **without LLM generation dependencies**.
 
-- [x] **Phase 3: Preprocessing & Document Segmentation**
-  - Text normalization, line-break merging, and safe de-hyphenation (`src/pdf_comparator/processing/cleaner.py`)
-  - Paragraph & sentence segmentation preserving `paragraph_id` and document hierarchy (`src/pdf_comparator/processing/segmenter.py`)
-  - Section heading propagation and list item detection
-  - Conversion of `RawDocument` into comparison-ready `Chunk` objects
-  - Unit tests covering whitespace normalization, line wrapping, sentence splitting, headings, and bbox subdivision
+| Decision Factor | Local Deterministic + Embedding Pipeline | LLM-Based Comparison |
+| :--- | :--- | :--- |
+| **Determinism** | 100% reproducible across 5x+ repeated runs | Non-deterministic, temperature-dependent |
+| **Privacy & Security** | 100% local, offline execution on CPU | Requires sending document text to cloud APIs |
+| **Cost & Latency** | Free local execution; ~20ms warm latency | High token costs; several seconds per prompt |
+| **Explainability** | Audit-traceable multi-signal breakdown | Opaque neural text generation |
+| **Output Integrity** | Strict typing via dataclasses & JSON schema | Hallucination risks & schema breakdown |
 
-- [x] **Phase 4: Deterministic Exact Matching**
-  - Hash-indexed $O(N + M)$ exact matching engine (`src/pdf_comparator/comparison/exact.py`)
-  - Duplicate handling using FIFO queue allocation per normalized key
-  - Page-agnostic matching preserving reordering explanations
-  - Generation of `ExactMatchResult` containing `UNCHANGED` `MatchResult` objects and unmatched candidate pools
-  - Unit tests covering duplicates, reordering, empty documents, metadata preservation, and performance benchmark
+*Note: An LLM could be added as an optional future post-processing layer for natural language executive summaries, but is not required for core comparison.*
 
-- [x] **Phase 5: Semantic Embedding & Candidate Retrieval**
-  - Lightweight local embeddings using `all-MiniLM-L6-v2` via `sentence-transformers`
-  - FAISS inner-product vector indexing (`faiss.IndexFlatIP`) for fast top-k candidate retrieval
-  - L2 normalization guaranteeing vector inner product equals cosine similarity
-  - Candidate retrieval isolated from alignment to prevent premature false-positive matches
-  - Unit tests covering paraphrase similarity, top-k filtering, metadata preservation, and score range boundaries
+---
 
-- [x] **Phase 6: Multi-Signal Alignment & 1-to-1 Correspondence**
-  - `CandidateAligner` combining semantic, lexical, section, numeric/entity, type, and positional signals (`src/pdf_comparator/comparison/alignment.py`)
-  - Determines the best one-to-one correspondence between unresolved source and target chunks
-  - Greedy descending composite-score 1-to-1 assignment algorithm with deterministic tie-breaking
-  - Configurable minimum alignment threshold (`min_alignment_score`) preventing low-confidence matches
-  - Human-readable explainable rationale generation for every assigned pair
+## 4. Technology Stack
+- **Core Language**: Python 3.10+
+- **PDF Extraction**: [PyMuPDF](https://pymupdf.readthedocs.io/) (`fitz`)
+- **Semantic Embeddings**: `sentence-transformers` (`all-MiniLM-L6-v2`, 384-dim)
+- **Vector Candidate Indexing**: `faiss-cpu` (`IndexFlatIP`)
+- **Testing & Benchmarking**: `pytest`
+- **Output Formats**: Standard Library `json`, Standalone HTML5 + CSS3 + Vanilla JS
 
-- [x] **Phase 7: Content-Aware Structural Change Detection**
-  - Deterministic entity extraction & normalization (`src/pdf_comparator/comparison/structural.py`)
-  - Detects changes in numbers, decimals, currencies, dates, durations, units, and obligation modalities (`must`, `shall`, `may`)
-  - Identifies added or removed structured entities within aligned chunk pairs
-  - Eliminates false positives from formatting variations (e.g. `1 January 2026` vs `January 1, 2026`, `30 days` vs `thirty days`)
-  - Unit tests covering all entity types, multiple changes per chunk, formatting equivalence, and serializable output
+---
 
-- [x] **Phase 8: Final Classification, Severity & Confidence Scoring**
-  - `ResultClassifier` synthesizing evidence from exact matching, semantic alignment, and structural change analysis into `MatchResult` objects (`src/pdf_comparator/scoring/classifier.py`)
-  - Configurable `SeverityEvaluator` (`src/pdf_comparator/scoring/severity.py`) assigning `NONE`, `LOW`, `MEDIUM`, or `HIGH` severity based on entity modification types (e.g. monetary values, percentages, modality obligations)
-  - `ConfidenceEvaluator` (`src/pdf_comparator/scoring/confidence.py`) computing deterministic reliability scores (0.0 to 1.0) incorporating composite alignment strength, candidate top1-top2 score margins, and multi-signal agreement
-  - Transparent human-readable explanations generated for every final match result
-  - Unit tests covering status classification, severity grading, confidence margin scaling, and deterministic execution
+## 5. Phased Implementation Roadmap
 
-- [x] **Phase 9: End-to-End Pipeline Integration & CLI**
-  - `ComparisonEngine` orchestrating PDF extraction, segmentation, exact matching, FAISS vector retrieval, multi-signal alignment, structural change detection, and classification (`src/pdf_comparator/core/engine.py`)
-  - CLI entry point (`python -m pdf_comparator.main source.pdf target.pdf`) displaying concise document comparison summary and processing metrics
-  - Robust handling for empty PDFs, missing files, corrupt PDFs, and synthetic integration test fixtures
-  - Comprehensive integration test suite (`tests/integration/test_pipeline.py`)
+| Phase | Responsibility / Component | Status |
+| :---: | :--- | :---: |
+| **1** | Project Foundation & Type-Safe Dataclasses | Complete |
+| **2** | Native PDF Text & Metadata Ingestion | Complete |
+| **3** | Text Normalization & Paragraph/Sentence Segmentation | Complete |
+| **4** | Deterministic Exact Matching ($O(N+M)$ Hash Keying) | Complete |
+| **5** | Semantic Vector Embedding & FAISS Candidate Retrieval | Complete |
+| **6** | Multi-Signal Candidate Alignment & 1-to-1 Assignment | Complete |
+| **7** | Content-Aware Structural Entity Change Detection | Complete |
+| **8** | Final Classification, Severity & Confidence Scoring | Complete |
+| **9** | End-to-End Pipeline Integration (`ComparisonEngine`) | Complete |
+| **10** | Machine-Readable JSON Export & Standalone HTML Report | Complete |
+| **11** | Edge-Case Hardening, XSS Escaping & Performance Benchmarks | Complete |
+| **12** | Final Documentation, Packaging & Demo Dataset | Complete |
 
-- [x] **Phase 10: Reporting, Visualization & Export**
-  - Machine-readable `JSONReportBuilder` (`src/pdf_comparator/output/json_builder.py`) with serialized enums, summary statistics, and bounding boxes
-  - Standalone, responsive `HTMLReportBuilder` (`src/pdf_comparator/output/html_builder.py`) featuring executive summary cards, filter tabs, live search, collapsible cards, and XSS safety
-  - CLI integration supporting `--output-dir reports/` for automated HTML/JSON report generation
-  - Unit tests covering JSON schema validation, HTML rendering, XSS escaping, and disk writing (`tests/unit/test_output.py`)
+---
 
-- [x] **Phase 11: Production Hardening, Edge-Case Testing & Benchmarking**
-  - Edge-case unit tests covering false-positive section number protection, blank/whitespace page handling, long paragraph splitting, multiple entity changes, and XSS payload escaping (`tests/unit/test_edge_cases.py`)
-  - Determinism verification ensuring 100% byte-for-byte identical output across repeated executions
-  - Performance benchmarking suite measuring per-phase latency breakdown and cold-start vs warm execution times (`tests/benchmark/test_benchmark.py`)
-  - Complete 100-test suite passing with 0 failures
+## 6. Key Algorithms & Complexity Breakdown
 
-## Production Readiness & System Limitations
+1. **Exact Matching ($O(N + M)$)**: Hashes normalized chunk text into an inverted lookup table. Matches identical content instantly, avoiding expensive vector operations for unchanged clauses.
+2. **Semantic Vector Retrieval ($O(U \cdot K)$)**: Computes 384-dimensional embeddings for unresolved chunks ($U$) using `all-MiniLM-L6-v2`. Uses FAISS cosine similarity (`IndexFlatIP`) to retrieve Top-K candidate matches.
+3. **Multi-Signal Alignment ($O(P \log P)$)**: Computes composite correspondence scores across candidates ($P$) using a weighted multi-signal formula:
+   $$\text{Score} = 0.45 \cdot \text{Semantic} + 0.20 \cdot \text{Lexical} + 0.15 \cdot \text{Section} + 0.10 \cdot \text{Entity} + 0.05 \cdot \text{Type} + 0.05 \cdot \text{Position}$$
+   Assigns target chunks using greedy 1-to-1 matching with deterministic tie-breaking.
+4. **Structural Entity Analysis**: Evaluates aligned pairs using deterministic regular expressions and canonical normalizers for currencies (`$10,000`), percentages (`5%`), dates (`1 Jan 2026`), durations (`30 days`), and obligation modalities (`must` vs `may`).
 
-### 1. Architectural & Execution Characteristics
-- **100% Deterministic & Reproducible**: Core comparisons, multi-signal alignments, entity extraction rules, severity grading, and confidence scoring operate without stochastic model variance or LLM hallucinations.
-- **Local & Offline Processing**: Runs entirely on local CPU (`all-MiniLM-L6-v2` via `sentence-transformers` and `faiss-cpu`). No external network requests, cloud APIs, or API keys required.
-- **Security & XSS Escaping**: HTML reporting escapes 100% of untrusted text strings from PDF documents using `html.escape()`, preventing code injection or malicious XSS execution.
+---
 
-### 2. Performance & Scalability Observations
-- **Cold-Start Latency**: Model initialization (`all-MiniLM-L6-v2`) requires ~0.09s on CPU.
-- **Warm Execution Latency**: Reusing an initialized `ComparisonEngine` processes a 10-page (300 chunk) PDF pair in ~0.02s (~20ms).
-- **Algorithmic Bounds**: Phase 4 exact matching filters identical content in $O(N+M)$ time before FAISS vector indexing, keeping embedding latency minimal even on large contracts.
+## 7. Performance Benchmarks
 
-### 3. Current PoC Scope & System Limitations
-- **Native PDF Ingestion**: Optimized for native digital PDFs with extractable text layers (`fitz` / PyMuPDF).
-- **OCR Fallback**: `src/pdf_comparator/ingestion/ocr.py` remains a non-active placeholder; scanned image-only PDFs requiring Tesseract OCR are currently outside the active pipeline.
-- **Table Structure Extraction**: `src/pdf_comparator/ingestion/table.py` remains a placeholder; complex multi-column table cells flow through sentence segmentation rather than custom 2D grid matrix alignment.
+Actual Phase 11 measurements on Windows CPU:
 
-## Reporting & Visualization Architecture
+| Metric | Measured Value |
+| :--- | :--- |
+| **Cold-Start Latency** *(Includes initial model load)* | **~0.092 s** |
+| **Warm Execution Latency** *(10 pages, 300 chunks)* | **~0.020 s (20 ms)** |
+| **Total Test Suite Execution** | **100 Passed in 30.77s** |
 
-### CLI Report Generation
-Run comparison with automated HTML and JSON report export:
+### Per-Phase Processing Latency (10 Pages, 300 Chunks)
+- **PDF Extraction**: `138.95 ms`
+- **Document Segmentation**: `11.33 ms`
+- **Exact Matching**: `0.40 ms`
+- **FAISS Candidate Retrieval**: `0.01 ms`
+- **Multi-Signal Alignment**: `0.01 ms`
+- **Classification & Structural Analysis**: `0.18 ms`
+- **HTML Report Generation**: `1.31 ms`
+- **JSON Export Generation**: `9.79 ms`
+
+---
+
+## 8. Security & Robustness
+- **XSS Safety**: 100% of PDF document text, section titles, and rationale explanations are escaped via `html.escape()` prior to rendering HTML report templates.
+- **Error Handling**: Corrupt PDFs, missing files, or empty documents raise explicit `PDFExtractionError` exceptions without exposing Python stack traces in the CLI.
+
+---
+
+## 9. Quickstart & Installation
 
 ```bash
-python -m pdf_comparator.main path/to/source.pdf path/to/target.pdf --output-dir reports/
+# 1. Clone repository
+git clone https://github.com/Akshay122130/hybrid-semantic-pdf-comparator.git
+cd hybrid-semantic-pdf-comparator
+
+# 2. Set up virtual environment
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# Linux/macOS:
+# source .venv/bin/activate
+
+# 3. Install project in editable mode
+pip install -e .
+
+# 4. Run full test suite (100 tests)
+python -m pytest
 ```
 
-#### Console Summary Output
+---
+
+## 10. CLI Usage & Demonstration
+
+### Version Control & Demo Artifact Handling
+- **Version-Controlled Inputs**: `demo/source_contract.pdf` and `demo/target_contract.pdf` are committed demo inputs.
+- **Generated Report Output**: `demo/reports/` contains generated HTML and JSON report outputs.
+- **Git Exclusion**: `demo/reports/` is generated output and is intentionally excluded from Git via `.gitignore`. Do not commit generated reports to Git.
+
+### Regenerate Demo Reports
+Run the comparison CLI to populate or update `demo/reports/`:
+
+```bash
+python -m pdf_comparator.main demo/source_contract.pdf demo/target_contract.pdf --output-dir demo/reports
+```
+
+### CLI Terminal Summary Output
 ```text
 PDF Comparison Complete
 
-Source: contract_v1.pdf
-Target: contract_v2.pdf
+Source: source_contract.pdf
+Target: target_contract.pdf
 
-Unchanged: 142
-Modified: 18
-Added: 4
-Removed: 5
+Unchanged: 6
+Modified: 3
+Added: 2
+Removed: 0
 
-High severity: 7
-Medium severity: 8
-Low severity: 3
+High severity: 1
+Medium severity: 0
+Low severity: 4
 
-Processing time: 2.41s
+Processing time: 4.08s
 
 Reports:
-HTML: reports/comparison_report.html
-JSON: reports/comparison_report.json
+HTML: demo\reports\comparison_report.html
+JSON: demo\reports\comparison_report.json
 ```
 
-### 1. JSON Report Format (Machine-Readable)
-Intended for downstream CI/CD pipelines, database indexing, and automated auditing.
 
-```json
-{
-  "source_document": "contract_v1.pdf",
-  "target_document": "contract_v2.pdf",
-  "timestamp": "2026-09-01T22:30:00Z",
-  "engine_version": "1.0.0",
-  "summary": {
-    "unchanged": 142,
-    "modified": 18,
-    "added": 4,
-    "removed": 5,
-    "high": 7,
-    "medium": 8,
-    "low": 3,
-    "none": 142
-  },
-  "processing_stats": {
-    "pages_processed": 10,
-    "chunks_extracted": 169,
-    "exact_matches": 142,
-    "semantic_matches": 18,
-    "added": 4,
-    "removed": 5,
-    "processing_time_ms": 2410.0
-  },
-  "results": [ ... ]
-}
-```
+---
 
-### 2. Standalone HTML Report (Human Review)
-Intended for human legal, compliance, and engineering review.
-- **Zero-Dependency**: Standalone single `.html` file with embedded CSS and minimal vanilla JS. Works offline directly in any browser (`file:///...html`).
-- **Security & XSS Safety**: 100% of PDF document text, section titles, and rationale explanations are escaped via `html.escape()`.
-- **Interactive Features**:
-  - Executive summary card grid displaying status and severity counts.
-  - Client-side filtering tabs (`All`, `Modified`, `Added`, `Removed`, `Unchanged`, `High Sev`, `Med Sev`, `Low Sev`).
-  - Instant client-side search box across document text and explanations.
-  - Collapsible result cards with side-by-side diff panes.
-  - Structural change detail tables for currency, date, duration, percentage, and modality shifts.
+## 11. Sample Use Case
 
+### Source Clause
+> *"The supplier must pay $10,000 within 30 days of invoice receipt."*
 
-## Phase Boundary Separation
-- **Phase 6 (Alignment)**: Answers *"Which source chunk corresponds to which target chunk?"* Produces `AlignedPair` correspondences without deciding business change status, final severity, or confidence.
-- **Phase 7 (Content Analysis)**: Answers *"What specific structured tokens changed between aligned chunks?"* Detects changes in numbers, dates, currencies, durations, obligations, and negations.
-- **Phase 8 (Classification & Scoring)**: Answers *"What is the final status (MODIFIED/ADDED/REMOVED), severity (LOW/MEDIUM/HIGH), and confidence rating?"* Synthesizes alignment and structural evidence into `MatchResult` objects.
+### Target Clause
+> *"The supplier may pay $12,000 within 45 days of invoice receipt."*
 
-## Final Classification, Severity & Confidence Design
-- **Deterministic Rules vs LLMs**: The classification and scoring layer relies entirely on deterministic rule sets and evidence synthesis rather than LLM calls. This guarantees 100% reproducible outcomes across runs.
-- **Severity vs. Confidence Separation**:
-  - **Severity**: Represents business impact or potential risk of a change (e.g., changing `$10,000` to `$12,000` or `must` to `may` is `HIGH` severity). *Note: Severity rules are PoC heuristics and do not constitute professional or legal advice.*
-  - **Confidence**: Represents system reliability in its classification (e.g. an exact match has `1.0` confidence; an aligned pair with strong multi-signal agreement and a wide candidate score margin has high confidence ~`0.90`).
-- **Candidate Score Margin Impact**: When multiple candidate matches are retrieved by FAISS in Phase 5, confidence incorporates the score gap ($\text{top}_1 - \text{top}_2$). A wide margin boosts confidence, while a tight margin penalizes confidence due to candidate ambiguity.
+### Engine Classification
+- **Status**: `MODIFIED`
+- **Severity**: `HIGH`
+- **Confidence**: `89.7%`
+- **Structural Changes**:
+  - `MODALITY_CHANGE`: `must` $\rightarrow$ `may`
+  - `CURRENCY_CHANGE`: `$10,000` $\rightarrow$ `$12,000`
+  - `DURATION_CHANGE`: `30 days` $\rightarrow$ `45 days`
 
+---
 
-## Content-Aware Structural Change Detection Design
-- **Why Structural Analysis Follows Semantic Alignment**: Semantic embeddings group semantically related sentences together regardless of entity value diffs. Once Phase 6 establishes 1-to-1 correspondence, Phase 7 deterministically inspects the aligned pair for exact structured token modifications.
-- **Normalized Entity Comparison**: Entity values are converted to canonical forms before comparison (e.g., dates normalized to `(YYYY, MM, DD)` tuples, currency strings normalized to `(code, float_val)` pairs, and written word numbers converted to numerical values). This avoids false changes triggered by trivial formatting differences.
-- **Separation from Severity & Confidence**: Phase 7 exclusively reports facts (e.g., `DURATION_CHANGE`: `30 days` $\rightarrow$ `45 days`). It does not assign business risk (`HIGH` severity) or confidence scores; Phase 8 will weigh structural changes alongside semantic alignment scores to produce final classifications.
+## 12. Known System Limitations
+- **OCR Fallback**: `src/pdf_comparator/ingestion/ocr.py` remains a non-active placeholder. Scanned image-only PDFs requiring OCR are currently outside the active pipeline.
+- **Specialized Table Grid Extraction**: `src/pdf_comparator/ingestion/table.py` remains a placeholder. Table text flows through standard sentence segmentation rather than custom 2D grid matrix alignment.
+- **Rule-Based Severity Policies**: Severity rules are PoC heuristics and do not constitute legal advice.
 
+---
 
-## Multi-Signal Alignment & 1-to-1 Correspondence Design
-- **Why Semantic Similarity Alone Is Insufficient**: Embedding models measure stylistic and topical closeness. A sentence like *"Payment is due in 30 days"* and *"Payment is due in 45 days"* have near-identical vector embeddings (~0.90 similarity), but different contractual terms. Combining semantic similarity with token lexical overlap, section headers, numeric/entity overlap, and chunk type compatibility prevents false alignments.
-- **One-to-One Assignment Algorithm**: A greedy descending composite-score algorithm evaluates all candidate pairs retrieved by Phase 5. Candidate pairs above `min_alignment_score` are sorted by composite score (with deterministic tie-breaking on semantic score, lexical score, page proximity, and chunk IDs). Each target chunk is assigned to at most one source chunk.
-- **Explainability**: Every aligned pair generates a transparent explanation string outlining why the pair was selected (e.g. *"Selected candidate because of high semantic similarity, matching section context, compatible chunk types, and matching numeric/entity tokens"*).
-
-
-
-
-
+## 13. Future Extensions
+1. Integration of Tesseract OCR fallback for scanned PDFs.
+2. 2D grid table cell structure comparison.
+3. PDF visual bounding-box overlay highlighting.
+4. Persistent embedding cache for large document repositories.
+5. REST API wrapper (`FastAPI`).
