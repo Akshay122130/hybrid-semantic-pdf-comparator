@@ -71,7 +71,13 @@ Key Architectural Principles:
   - Eliminates false positives from formatting variations (e.g. `1 January 2026` vs `January 1, 2026`, `30 days` vs `thirty days`)
   - Unit tests covering all entity types, multiple changes per chunk, formatting equivalence, and serializable output
 
-- [ ] **Phase 8: Final Classification, Severity & Confidence Scoring** (Pending)
+- [x] **Phase 8: Final Classification, Severity & Confidence Scoring**
+  - `ResultClassifier` synthesizing evidence from exact matching, semantic alignment, and structural change analysis into `MatchResult` objects (`src/pdf_comparator/scoring/classifier.py`)
+  - Configurable `SeverityEvaluator` (`src/pdf_comparator/scoring/severity.py`) assigning `NONE`, `LOW`, `MEDIUM`, or `HIGH` severity based on entity modification types (e.g. monetary values, percentages, modality obligations)
+  - `ConfidenceEvaluator` (`src/pdf_comparator/scoring/confidence.py`) computing deterministic reliability scores (0.0 to 1.0) incorporating composite alignment strength, candidate top1-top2 score margins, and multi-signal agreement
+  - Transparent human-readable explanations generated for every final match result
+  - Unit tests covering status classification, severity grading, confidence margin scaling, and deterministic execution
+
 - [ ] **Phase 9: Output Generation (HTML/JSON) & CLI** (Pending)
 - [ ] **Phase 10: Evaluation & Ground-Truth Testing** (Pending)
 
@@ -79,6 +85,14 @@ Key Architectural Principles:
 - **Phase 6 (Alignment)**: Answers *"Which source chunk corresponds to which target chunk?"* Produces `AlignedPair` correspondences without deciding business change status, final severity, or confidence.
 - **Phase 7 (Content Analysis)**: Answers *"What specific structured tokens changed between aligned chunks?"* Detects changes in numbers, dates, currencies, durations, obligations, and negations.
 - **Phase 8 (Classification & Scoring)**: Answers *"What is the final status (MODIFIED/ADDED/REMOVED), severity (LOW/MEDIUM/HIGH), and confidence rating?"* Synthesizes alignment and structural evidence into `MatchResult` objects.
+
+## Final Classification, Severity & Confidence Design
+- **Deterministic Rules vs LLMs**: The classification and scoring layer relies entirely on deterministic rule sets and evidence synthesis rather than LLM calls. This guarantees 100% reproducible outcomes across runs.
+- **Severity vs. Confidence Separation**:
+  - **Severity**: Represents business impact or potential risk of a change (e.g., changing `$10,000` to `$12,000` or `must` to `may` is `HIGH` severity). *Note: Severity rules are PoC heuristics and do not constitute professional or legal advice.*
+  - **Confidence**: Represents system reliability in its classification (e.g. an exact match has `1.0` confidence; an aligned pair with strong multi-signal agreement and a wide candidate score margin has high confidence ~`0.90`).
+- **Candidate Score Margin Impact**: When multiple candidate matches are retrieved by FAISS in Phase 5, confidence incorporates the score gap ($\text{top}_1 - \text{top}_2$). A wide margin boosts confidence, while a tight margin penalizes confidence due to candidate ambiguity.
+
 
 ## Content-Aware Structural Change Detection Design
 - **Why Structural Analysis Follows Semantic Alignment**: Semantic embeddings group semantically related sentences together regardless of entity value diffs. Once Phase 6 establishes 1-to-1 correspondence, Phase 7 deterministically inspects the aligned pair for exact structured token modifications.
