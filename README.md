@@ -84,33 +84,86 @@ Key Architectural Principles:
   - Robust handling for empty PDFs, missing files, corrupt PDFs, and synthetic integration test fixtures
   - Comprehensive integration test suite (`tests/integration/test_pipeline.py`)
 
-- [ ] **Phase 10: HTML/JSON Visual Reporting & Evaluation** (Pending)
+- [x] **Phase 10: Reporting, Visualization & Export**
+  - Machine-readable `JSONReportBuilder` (`src/pdf_comparator/output/json_builder.py`) with serialized enums, summary statistics, and bounding boxes
+  - Standalone, responsive `HTMLReportBuilder` (`src/pdf_comparator/output/html_builder.py`) featuring executive summary cards, filter tabs, live search, collapsible cards, and XSS safety
+  - CLI integration supporting `--output-dir reports/` for automated HTML/JSON report generation
+  - Unit tests covering JSON schema validation, HTML rendering, XSS escaping, and disk writing (`tests/unit/test_output.py`)
 
-## CLI Usage & End-to-End Pipeline Execution
-Run the comparison engine directly from the command line:
+## Reporting & Visualization Architecture
+
+### CLI Report Generation
+Run comparison with automated HTML and JSON report export:
 
 ```bash
-python -m pdf_comparator.main path/to/source.pdf path/to/target.pdf
+python -m pdf_comparator.main path/to/source.pdf path/to/target.pdf --output-dir reports/
 ```
 
-### CLI Output Example
+#### Console Summary Output
 ```text
 PDF Comparison Complete
 
 Source: contract_v1.pdf
 Target: contract_v2.pdf
 
-Pages processed: 2
-Chunks extracted: 12
-Exact matches: 8
-Semantic alignments: 2
-Unchanged: 8
-Modified: 2
-Added: 1
-Removed: 1
+Unchanged: 142
+Modified: 18
+Added: 4
+Removed: 5
 
-Processing time: 1.24s
+High severity: 7
+Medium severity: 8
+Low severity: 3
+
+Processing time: 2.41s
+
+Reports:
+HTML: reports/comparison_report.html
+JSON: reports/comparison_report.json
 ```
+
+### 1. JSON Report Format (Machine-Readable)
+Intended for downstream CI/CD pipelines, database indexing, and automated auditing.
+
+```json
+{
+  "source_document": "contract_v1.pdf",
+  "target_document": "contract_v2.pdf",
+  "timestamp": "2026-09-01T22:30:00Z",
+  "engine_version": "1.0.0",
+  "summary": {
+    "unchanged": 142,
+    "modified": 18,
+    "added": 4,
+    "removed": 5,
+    "high": 7,
+    "medium": 8,
+    "low": 3,
+    "none": 142
+  },
+  "processing_stats": {
+    "pages_processed": 10,
+    "chunks_extracted": 169,
+    "exact_matches": 142,
+    "semantic_matches": 18,
+    "added": 4,
+    "removed": 5,
+    "processing_time_ms": 2410.0
+  },
+  "results": [ ... ]
+}
+```
+
+### 2. Standalone HTML Report (Human Review)
+Intended for human legal, compliance, and engineering review.
+- **Zero-Dependency**: Standalone single `.html` file with embedded CSS and minimal vanilla JS. Works offline directly in any browser (`file:///...html`).
+- **Security & XSS Safety**: 100% of PDF document text, section titles, and rationale explanations are escaped via `html.escape()`.
+- **Interactive Features**:
+  - Executive summary card grid displaying status and severity counts.
+  - Client-side filtering tabs (`All`, `Modified`, `Added`, `Removed`, `Unchanged`, `High Sev`, `Med Sev`, `Low Sev`).
+  - Instant client-side search box across document text and explanations.
+  - Collapsible result cards with side-by-side diff panes.
+  - Structural change detail tables for currency, date, duration, percentage, and modality shifts.
 
 
 ## Phase Boundary Separation
