@@ -43,8 +43,16 @@ Key Architectural Principles:
   - Conversion of `RawDocument` into comparison-ready `Chunk` objects
   - Unit tests covering whitespace normalization, line wrapping, sentence splitting, headings, and bbox subdivision
 
-- [ ] **Phase 4: Exact & Semantic Candidate Alignment** (Pending)
-- [ ] **Phase 5: Content-Aware Analysis & Severity Scoring** (Pending)
-- [ ] **Phase 6: Output Generation (HTML/JSON) & CLI** (Pending)
-- [ ] **Phase 7: Evaluation & Ground-Truth Testing** (Pending)
+- [x] **Phase 4: Deterministic Exact Matching**
+  - Hash-indexed $O(N + M)$ exact matching engine (`src/pdf_comparator/comparison/exact.py`)
+  - Duplicate handling using FIFO queue allocation per normalized key
+  - Page-agnostic matching preserving reordering explanations
+  - Generation of `ExactMatchResult` containing `UNCHANGED` `MatchResult` objects and unmatched candidate pools
+  - Unit tests covering duplicates, reordering, empty documents, metadata preservation, and performance benchmark
+
+- [ ] **Phase 5: Candidate Retrieval & Semantic Alignment** (Pending)
+- [ ] **Phase 6: Content-Aware Analysis & Severity Scoring** (Pending)
+- [ ] **Phase 7: Output Generation (HTML/JSON) & CLI** (Pending)
+- [ ] **Phase 8: Evaluation & Ground-Truth Testing** (Pending)
+
 
