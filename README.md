@@ -64,10 +64,14 @@ Key Architectural Principles:
   - Configurable minimum alignment threshold (`min_alignment_score`) preventing low-confidence matches
   - Human-readable explainable rationale generation for every assigned pair
 
-- [ ] **Phase 7: Content-Aware Structural Change Detection** (Pending)
-  - Identifies deterministic content-level changes such as numeric, date, currency, duration, unit, and modality changes
+- [x] **Phase 7: Content-Aware Structural Change Detection**
+  - Deterministic entity extraction & normalization (`src/pdf_comparator/comparison/structural.py`)
+  - Detects changes in numbers, decimals, currencies, dates, durations, units, and obligation modalities (`must`, `shall`, `may`)
+  - Identifies added or removed structured entities within aligned chunk pairs
+  - Eliminates false positives from formatting variations (e.g. `1 January 2026` vs `January 1, 2026`, `30 days` vs `thirty days`)
+  - Unit tests covering all entity types, multiple changes per chunk, formatting equivalence, and serializable output
+
 - [ ] **Phase 8: Final Classification, Severity & Confidence Scoring** (Pending)
-  - Uses detected changes and alignment evidence to determine final classification (MODIFIED, ADDED, REMOVED), severity (LOW, MEDIUM, HIGH), and confidence
 - [ ] **Phase 9: Output Generation (HTML/JSON) & CLI** (Pending)
 - [ ] **Phase 10: Evaluation & Ground-Truth Testing** (Pending)
 
@@ -75,6 +79,12 @@ Key Architectural Principles:
 - **Phase 6 (Alignment)**: Answers *"Which source chunk corresponds to which target chunk?"* Produces `AlignedPair` correspondences without deciding business change status, final severity, or confidence.
 - **Phase 7 (Content Analysis)**: Answers *"What specific structured tokens changed between aligned chunks?"* Detects changes in numbers, dates, currencies, durations, obligations, and negations.
 - **Phase 8 (Classification & Scoring)**: Answers *"What is the final status (MODIFIED/ADDED/REMOVED), severity (LOW/MEDIUM/HIGH), and confidence rating?"* Synthesizes alignment and structural evidence into `MatchResult` objects.
+
+## Content-Aware Structural Change Detection Design
+- **Why Structural Analysis Follows Semantic Alignment**: Semantic embeddings group semantically related sentences together regardless of entity value diffs. Once Phase 6 establishes 1-to-1 correspondence, Phase 7 deterministically inspects the aligned pair for exact structured token modifications.
+- **Normalized Entity Comparison**: Entity values are converted to canonical forms before comparison (e.g., dates normalized to `(YYYY, MM, DD)` tuples, currency strings normalized to `(code, float_val)` pairs, and written word numbers converted to numerical values). This avoids false changes triggered by trivial formatting differences.
+- **Separation from Severity & Confidence**: Phase 7 exclusively reports facts (e.g., `DURATION_CHANGE`: `30 days` $\rightarrow$ `45 days`). It does not assign business risk (`HIGH` severity) or confidence scores; Phase 8 will weigh structural changes alongside semantic alignment scores to produce final classifications.
+
 
 ## Multi-Signal Alignment & 1-to-1 Correspondence Design
 - **Why Semantic Similarity Alone Is Insufficient**: Embedding models measure stylistic and topical closeness. A sentence like *"Payment is due in 30 days"* and *"Payment is due in 45 days"* have near-identical vector embeddings (~0.90 similarity), but different contractual terms. Combining semantic similarity with token lexical overlap, section headers, numeric/entity overlap, and chunk type compatibility prevents false alignments.

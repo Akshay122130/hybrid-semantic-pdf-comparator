@@ -1,4 +1,4 @@
-"""Comparison, alignment, and structural analysis module."""
+"""Comparison, alignment, and structural change analysis module."""
 
 from pdf_comparator.comparison.alignment import (
     AlignedPair,
@@ -16,6 +16,12 @@ from pdf_comparator.comparison.semantic import (
     SemanticRetrievalResult,
     SemanticRetriever,
 )
+from pdf_comparator.comparison.structural import (
+    StructuralAnalyzer,
+    StructuralChange,
+    StructuralChangeResult,
+    StructuralChangeType,
+)
 
 __all__ = [
     "ExactMatcher",
@@ -26,6 +32,10 @@ __all__ = [
     "CandidateAligner",
     "AlignedPair",
     "AlignmentResult",
+    "StructuralAnalyzer",
+    "StructuralChange",
+    "StructuralChangeResult",
+    "StructuralChangeType",
     "calculate_lexical_similarity",
     "calculate_section_similarity",
     "calculate_type_compatibility",
