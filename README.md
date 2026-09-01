@@ -57,15 +57,31 @@ Key Architectural Principles:
   - Candidate retrieval isolated from alignment to prevent premature false-positive matches
   - Unit tests covering paraphrase similarity, top-k filtering, metadata preservation, and score range boundaries
 
-- [ ] **Phase 6: Multi-Signal Alignment & Correspondence** (Pending)
-- [ ] **Phase 7: Content-Aware Analysis & Severity Scoring** (Pending)
-- [ ] **Phase 8: Output Generation (HTML/JSON) & CLI** (Pending)
-- [ ] **Phase 9: Evaluation & Ground-Truth Testing** (Pending)
+- [x] **Phase 6: Multi-Signal Alignment & 1-to-1 Correspondence**
+  - `CandidateAligner` combining semantic, lexical, section, numeric/entity, type, and positional signals (`src/pdf_comparator/comparison/alignment.py`)
+  - Determines the best one-to-one correspondence between unresolved source and target chunks
+  - Greedy descending composite-score 1-to-1 assignment algorithm with deterministic tie-breaking
+  - Configurable minimum alignment threshold (`min_alignment_score`) preventing low-confidence matches
+  - Human-readable explainable rationale generation for every assigned pair
 
-## Semantic Candidate Retrieval Design
-- **Post-Exact Execution**: Exact matching runs first in $O(N+M)$ time to eliminate identical chunks, drastically reducing the number of texts that require embedding generation.
-- **Candidate Retrieval vs. Final Alignment**: High semantic similarity indicates topical or stylistic similarity, but does not guarantee logical equivalence (e.g., "Must pay $100" vs "Must pay $500" have high embedding similarity). Separating retrieval from alignment ensures that candidate pools are gathered first, leaving 1-to-1 correspondence and structural change analysis to downstream multi-signal scoring.
-- **Model Caching & Reuse**: The local `all-MiniLM-L6-v2` model is loaded once and cached. Target candidates are batch-encoded and indexed in a single FAISS index per comparison run.
+- [ ] **Phase 7: Content-Aware Structural Change Detection** (Pending)
+  - Identifies deterministic content-level changes such as numeric, date, currency, duration, unit, and modality changes
+- [ ] **Phase 8: Final Classification, Severity & Confidence Scoring** (Pending)
+  - Uses detected changes and alignment evidence to determine final classification (MODIFIED, ADDED, REMOVED), severity (LOW, MEDIUM, HIGH), and confidence
+- [ ] **Phase 9: Output Generation (HTML/JSON) & CLI** (Pending)
+- [ ] **Phase 10: Evaluation & Ground-Truth Testing** (Pending)
+
+## Phase Boundary Separation
+- **Phase 6 (Alignment)**: Answers *"Which source chunk corresponds to which target chunk?"* Produces `AlignedPair` correspondences without deciding business change status, final severity, or confidence.
+- **Phase 7 (Content Analysis)**: Answers *"What specific structured tokens changed between aligned chunks?"* Detects changes in numbers, dates, currencies, durations, obligations, and negations.
+- **Phase 8 (Classification & Scoring)**: Answers *"What is the final status (MODIFIED/ADDED/REMOVED), severity (LOW/MEDIUM/HIGH), and confidence rating?"* Synthesizes alignment and structural evidence into `MatchResult` objects.
+
+## Multi-Signal Alignment & 1-to-1 Correspondence Design
+- **Why Semantic Similarity Alone Is Insufficient**: Embedding models measure stylistic and topical closeness. A sentence like *"Payment is due in 30 days"* and *"Payment is due in 45 days"* have near-identical vector embeddings (~0.90 similarity), but different contractual terms. Combining semantic similarity with token lexical overlap, section headers, numeric/entity overlap, and chunk type compatibility prevents false alignments.
+- **One-to-One Assignment Algorithm**: A greedy descending composite-score algorithm evaluates all candidate pairs retrieved by Phase 5. Candidate pairs above `min_alignment_score` are sorted by composite score (with deterministic tie-breaking on semantic score, lexical score, page proximity, and chunk IDs). Each target chunk is assigned to at most one source chunk.
+- **Explainability**: Every aligned pair generates a transparent explanation string outlining why the pair was selected (e.g. *"Selected candidate because of high semantic similarity, matching section context, compatible chunk types, and matching numeric/entity tokens"*).
+
+
 
 
 
