@@ -225,9 +225,34 @@ JSON: demo\reports\comparison_report.json
 
 ---
 
-## 13. Future Extensions
-1. Integration of Tesseract OCR fallback for scanned PDFs.
-2. 2D grid table cell structure comparison.
-3. PDF visual bounding-box overlay highlighting.
-4. Persistent embedding cache for large document repositories.
-5. REST API wrapper (`FastAPI`).
+## 13. Future Enhancements
+
+1. **OCR Support**
+   - Support scanned/image-only PDFs.
+   - Automatically detect pages with insufficient native text and trigger OCR.
+
+2. **Advanced Table Comparison**
+   - Add true 2D table extraction.
+   - Compare rows, columns, cells, and structural changes.
+
+3. **Domain-Specific Intelligence**
+   - Allow configurable severity policies and thresholds for domains such as legal, finance, and healthcare.
+
+4. **Improved Alignment**
+   - Explore optimal assignment algorithms for highly ambiguous candidate matches instead of relying only on greedy matching.
+
+5. **Scalable API and Batch Processing**
+   - Expose the engine through an API such as FastAPI.
+   - Support large-scale batch document comparison and asynchronous processing.
+
+6. **Evaluation and Continuous Improvement**
+   - Build a labelled benchmark dataset.
+   - Measure precision, recall, false positives, and false negatives.
+   - Use these measurements to tune thresholds and scoring weights.
+
+7. **Optional LLM Explanation Layer**
+   - An LLM would NOT replace the deterministic comparison engine (which remains the source of truth).
+   - An LLM could optionally convert already-detected changes into more natural human-readable explanations.
+
+These enhancements would improve document coverage, scalability, accuracy, and usability while preserving the current system's deterministic and explainable core.
+
