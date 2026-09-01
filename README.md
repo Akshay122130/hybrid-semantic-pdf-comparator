@@ -50,9 +50,22 @@ Key Architectural Principles:
   - Generation of `ExactMatchResult` containing `UNCHANGED` `MatchResult` objects and unmatched candidate pools
   - Unit tests covering duplicates, reordering, empty documents, metadata preservation, and performance benchmark
 
-- [ ] **Phase 5: Candidate Retrieval & Semantic Alignment** (Pending)
-- [ ] **Phase 6: Content-Aware Analysis & Severity Scoring** (Pending)
-- [ ] **Phase 7: Output Generation (HTML/JSON) & CLI** (Pending)
-- [ ] **Phase 8: Evaluation & Ground-Truth Testing** (Pending)
+- [x] **Phase 5: Semantic Embedding & Candidate Retrieval**
+  - Lightweight local embeddings using `all-MiniLM-L6-v2` via `sentence-transformers`
+  - FAISS inner-product vector indexing (`faiss.IndexFlatIP`) for fast top-k candidate retrieval
+  - L2 normalization guaranteeing vector inner product equals cosine similarity
+  - Candidate retrieval isolated from alignment to prevent premature false-positive matches
+  - Unit tests covering paraphrase similarity, top-k filtering, metadata preservation, and score range boundaries
+
+- [ ] **Phase 6: Multi-Signal Alignment & Correspondence** (Pending)
+- [ ] **Phase 7: Content-Aware Analysis & Severity Scoring** (Pending)
+- [ ] **Phase 8: Output Generation (HTML/JSON) & CLI** (Pending)
+- [ ] **Phase 9: Evaluation & Ground-Truth Testing** (Pending)
+
+## Semantic Candidate Retrieval Design
+- **Post-Exact Execution**: Exact matching runs first in $O(N+M)$ time to eliminate identical chunks, drastically reducing the number of texts that require embedding generation.
+- **Candidate Retrieval vs. Final Alignment**: High semantic similarity indicates topical or stylistic similarity, but does not guarantee logical equivalence (e.g., "Must pay $100" vs "Must pay $500" have high embedding similarity). Separating retrieval from alignment ensures that candidate pools are gathered first, leaving 1-to-1 correspondence and structural change analysis to downstream multi-signal scoring.
+- **Model Caching & Reuse**: The local `all-MiniLM-L6-v2` model is loaded once and cached. Target candidates are batch-encoded and indexed in a single FAISS index per comparison run.
+
 
 
