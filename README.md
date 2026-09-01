@@ -78,8 +78,40 @@ Key Architectural Principles:
   - Transparent human-readable explanations generated for every final match result
   - Unit tests covering status classification, severity grading, confidence margin scaling, and deterministic execution
 
-- [ ] **Phase 9: Output Generation (HTML/JSON) & CLI** (Pending)
-- [ ] **Phase 10: Evaluation & Ground-Truth Testing** (Pending)
+- [x] **Phase 9: End-to-End Pipeline Integration & CLI**
+  - `ComparisonEngine` orchestrating PDF extraction, segmentation, exact matching, FAISS vector retrieval, multi-signal alignment, structural change detection, and classification (`src/pdf_comparator/core/engine.py`)
+  - CLI entry point (`python -m pdf_comparator.main source.pdf target.pdf`) displaying concise document comparison summary and processing metrics
+  - Robust handling for empty PDFs, missing files, corrupt PDFs, and synthetic integration test fixtures
+  - Comprehensive integration test suite (`tests/integration/test_pipeline.py`)
+
+- [ ] **Phase 10: HTML/JSON Visual Reporting & Evaluation** (Pending)
+
+## CLI Usage & End-to-End Pipeline Execution
+Run the comparison engine directly from the command line:
+
+```bash
+python -m pdf_comparator.main path/to/source.pdf path/to/target.pdf
+```
+
+### CLI Output Example
+```text
+PDF Comparison Complete
+
+Source: contract_v1.pdf
+Target: contract_v2.pdf
+
+Pages processed: 2
+Chunks extracted: 12
+Exact matches: 8
+Semantic alignments: 2
+Unchanged: 8
+Modified: 2
+Added: 1
+Removed: 1
+
+Processing time: 1.24s
+```
+
 
 ## Phase Boundary Separation
 - **Phase 6 (Alignment)**: Answers *"Which source chunk corresponds to which target chunk?"* Produces `AlignedPair` correspondences without deciding business change status, final severity, or confidence.

@@ -3,6 +3,7 @@
 from pdf_comparator.core.models import (
     Chunk,
     ChunkType,
+    ComparisonResult,
     MatchResult,
     MatchStatus,
     ProcessingStats,
@@ -12,6 +13,7 @@ from pdf_comparator.core.models import (
 __all__ = [
     "Chunk",
     "ChunkType",
+    "ComparisonResult",
     "MatchResult",
     "MatchStatus",
     "ProcessingStats",

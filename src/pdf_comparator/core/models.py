@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field, asdict
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class ChunkType(str, Enum):
@@ -121,3 +121,35 @@ class ProcessingStats:
     def from_dict(cls, data: Dict[str, Any]) -> "ProcessingStats":
         """Reconstruct a ProcessingStats instance from a dictionary."""
         return cls(**data)
+
+
+@dataclass
+class ComparisonResult:
+    """Top-level container for the complete document comparison outcome."""
+    source_document: str
+    target_document: str
+    results: List[MatchResult] = field(default_factory=list)
+    stats: ProcessingStats = field(default_factory=ProcessingStats)
+    timestamp: str = ""
+    engine_version: str = "1.0.0"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert comparison result to a dictionary representation."""
+        return {
+            "source_document": self.source_document,
+            "target_document": self.target_document,
+            "results": [r.to_dict() for r in self.results],
+            "stats": self.stats.to_dict(),
+            "timestamp": self.timestamp,
+            "engine_version": self.engine_version,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ComparisonResult":
+        """Reconstruct a ComparisonResult instance from a dictionary."""
+        data_copy = dict(data)
+        data_copy["results"] = [MatchResult.from_dict(r) for r in data_copy.get("results", [])]
+        if data_copy.get("stats"):
+            data_copy["stats"] = ProcessingStats.from_dict(data_copy["stats"])
+        return cls(**data_copy)
+
