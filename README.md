@@ -36,7 +36,15 @@ Key Architectural Principles:
   - Error handling for missing, invalid, corrupt, or empty PDFs (`PDFExtractionError`)
   - Unit tests using synthetic single-page, multi-page, empty, and corrupt PDFs
 
-- [ ] **Phase 3: Exact & Semantic Candidate Alignment** (Pending)
-- [ ] **Phase 4: Content-Aware Analysis & Severity Scoring** (Pending)
-- [ ] **Phase 5: Output Generation (HTML/JSON) & CLI** (Pending)
-- [ ] **Phase 6: Evaluation & Ground-Truth Testing** (Pending)
+- [x] **Phase 3: Preprocessing & Document Segmentation**
+  - Text normalization, line-break merging, and safe de-hyphenation (`src/pdf_comparator/processing/cleaner.py`)
+  - Paragraph & sentence segmentation preserving `paragraph_id` and document hierarchy (`src/pdf_comparator/processing/segmenter.py`)
+  - Section heading propagation and list item detection
+  - Conversion of `RawDocument` into comparison-ready `Chunk` objects
+  - Unit tests covering whitespace normalization, line wrapping, sentence splitting, headings, and bbox subdivision
+
+- [ ] **Phase 4: Exact & Semantic Candidate Alignment** (Pending)
+- [ ] **Phase 5: Content-Aware Analysis & Severity Scoring** (Pending)
+- [ ] **Phase 6: Output Generation (HTML/JSON) & CLI** (Pending)
+- [ ] **Phase 7: Evaluation & Ground-Truth Testing** (Pending)
+
